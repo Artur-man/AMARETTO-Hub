@@ -1,0 +1,579 @@
+---
+title: '<br><br><center>AMARETTO-Hub</center> <center>Enter Title Here</center>'
+output: 
+  html_document:
+    theme: cerulean
+    includes:
+      in_header: run/tag.html
+      before_body: run/navbar.html
+runtime: shiny
+---
+
+<style>
+  .main-container {
+    max-width:  100% !important;
+    padding-right: 1% !important;
+    padding-left: 1% !important;
+    margin-right: 1% !important;
+    margin-left: 1% !important;
+    table-layout: fixed !important;
+  }
+</style>
+
+```{r echo=FALSE, cache=FALSE, warning=FALSE, comment=FALSE, warning=FALSE}
+suppressMessages(library(dqshiny))
+suppressMessages(library(ggplot2))
+suppressMessages(library(visNetwork))
+suppressMessages(library(networkD3))
+suppressMessages(library(stringr))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(neo4r))
+suppressMessages(library(DT))
+suppressMessages(library(dplyr))
+suppressMessages(library(stringi))
+suppressMessages(library(shiny))
+suppressMessages(library(shinyWidgets))
+suppressMessages(library(shinythemes))
+suppressMessages(library(shinyjs))
+suppressMessages(library(AMARETTOHub))
+
+# load entities
+load('AllData.RData')
+
+# establish connection
+con <- neo4j_api$new(url = con_url, user = con_user, password = con_password)
+
+u <- tagList(
+  
+  useShinyjs(),
+  
+  fluidPage(theme = shinytheme("cerulean"),
+  
+  # Style for the navigation page
+  tags$head(tags$style(HTML("hr {border-top: 1px solid #2a52be;}"))),
+  
+  # Main Application
+  br(),
+  sidebarLayout(position = "left", 
+                
+                # Side Panel for querying and selection
+                sidebarPanel(                                       
+                  # Action Button
+                  fluidRow(
+                    column(4,actionButton("gennet","Generate")),
+                    column(8, progressBar(id = "progress", value = 0, total = 100, title = "", display_pct = TRUE))
+                  ),
+                  hr(),
+                  fluidRow(
+                    column(12,
+                           h4('Cohort:'),
+                             checkboxGroupInput("cohort", NULL,
+                                                choiceNames = as.list(Community_Info$Cohorts),
+                                                choiceValues = as.list(Community_Info$Cohorts),
+                                                selected = as.list(Community_Info$Cohorts),
+                                                inline = TRUE
+                             ),
+                           )
+                  ),
+                  hr(),
+                  fluidRow(
+                    column(6,
+                           # Select Driver Genes
+                           h4('Driver and Target Genes:'),
+                           selectizeInput('gene',NULL,Genes, c('STAT3','TP53'), multiple=TRUE,
+                                          options = list(create=TRUE)),
+                           checkboxInput('showallgenes','Show all Driver Genes',value = FALSE),
+                           
+                           # Select Modules 
+                           h4('Regulatory Modules:'),
+                           selectInput('module',NULL, Modules, NULL, multiple=TRUE),
+                           
+                           # Select Communities
+                           h4('Communities:'),
+                           selectInput('community',NULL, Communities, NULL, multiple=TRUE),
+                    ),
+                    div( id = 'geneset_input',
+                      column(6,
+                             h4('Functional Characterization:'),
+                             fluidRow(
+                               column(4,h6('Search:')),
+                               column(8,selectizeInput('genesetkeyword',NULL, c('HALLMARK','KEGG'), NULL, multiple = TRUE, 
+                                                       options = list(create = TRUE)))
+                             ),
+                             fluidRow(
+                               column(3,h6('Select:')),
+                               column(9,selectInput('geneset',NULL,GeneSet, NULL , multiple=TRUE))
+                             ),
+                             fluidRow(
+                               column(3,h6('Show:')),
+                               column(9,selectInput('showallgenesets',NULL,choices = c('None',
+                                                                                       'Other Modules')))
+                             ),
+                             fluidRow(
+                               column(6,numericInput('geneset_pvalue','P-value', value = 0.05)),
+                               column(6,numericInput('geneset_qvalue','FDR Q-value', value = 0.05))
+                             )
+                          
+                      )
+                    )
+                  ),
+                  hr(),
+                  div(id = 'phenotype_input',
+                    fluidRow(
+                      column(12,
+                        h4('Clinical Characterization:')
+                      )
+                    ),
+                    fluidRow(
+                      column(6,
+                             h5('Clinical or Molecular Phenotypes:'),
+                             selectizeInput('phenotype',NULL,Phenotype, multiple=TRUE, 
+                                            # selected = c('Smoking.SCC','Major.HPV.type.SCC','HPV_status.SCC'),
+                                            selected = NULL,
+                                            options = list(create=TRUE)),
+                             fluidRow(
+                               column(2,h6('Show:')),
+                               column(10,selectInput('showallpheno',NULL,choices = c('None',
+                                                                                     'Other Modules',
+                                                                                     'Other Clinical Char.')))
+                             )
+                             ),
+                      column(6,
+                             fluidRow(
+                               column(6,numericInput('pheno_pvalue','P-value', value = 0.05)),
+                               column(6,numericInput('pheno_qvalue','FDR Q-value', value = 0.05))
+                             )
+                             )
+                    )
+                  ),
+                  hr(),
+                  fluidRow(
+                    column(7,
+                           # Select Transcription Factors 
+                           h4("Transcription Factor Discovery:"),
+                           br(),
+                           radioButtons('showalltransfactor',NULL, 
+                                        c('show none','show all transcription factors validated',
+                                          'show all genes validated')),
+                           fluidRow(
+                             column(6,numericInput('transfactor_pvalue','P-value', value = 0.05)),
+                             column(6,numericInput('transfactor_qvalue','FDR Q-value', value = 0.05)),
+                           )
+                           ),
+                    column(5,
+                           # Select Driver Perturbration
+                           h4("Driver Discovery:"),
+                           br(),
+                           radioButtons('showalldriverpert',NULL, 
+                                        c('show none','show all drivers validated',
+                                          'show all genes validated')),
+                           fluidRow(
+                             selectInput('driverpert_valstat','Validation Status', selected = 'ES+Pval+Padj',
+                                         choices = c('ES+Pval+Padj','ES+Pval+Padj+Zscore')),
+                           )
+                           )
+                  ), 
+                  hr(),
+                  div(id = 'drug_input',
+                    fluidRow(column(6,h4("Drug Discovery:"))),
+                    fluidRow(
+                      column(6,
+                             fluidRow(
+                               column(4,h6('Search:')),
+                               column(8,textInput('drugkeyword',NULL))
+                             ),
+                             fluidRow(
+                               column(3,h6('Select:')),
+                               column(9,selectizeInput('drug',NULL,Drug, multiple=TRUE, options = list(create=TRUE)))
+                             ),                           
+                             ),
+                      column(6,
+                             sliderInput('showdgidb','# of DGIDB References',min = 0, max = 10,value = c(0,10)),
+                             sliderInput('shownbclinicaltrial','# of Clinical trials',min = 0, max = max(NBCT)+1, value = c(0,round(max(NBCT)/2)))
+                             )
+                    )
+                  )
+                  ,width = 3
+                ),
+                # Main Panel 
+                mainPanel(
+                  tabsetPanel(id = 'tabsetpanel',
+                    
+                    # visNetwork visaulization
+                    tabPanel("Network", visNetworkOutput("visnetwork",height="1000px"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Genes and Modules
+                    tabPanel("Genes", dataTableOutput("GeneVsModule"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Genes and Modules
+                    tabPanel("Modules", dataTableOutput("ModuleOverview"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Genes and Modules
+                    tabPanel("Communities", dataTableOutput("CommunityOverview"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Modules and Phenotype
+                    tabPanel("Phenotypes (Clinical Characterization)",
+                             dataTableOutput("ModuleVsPhenotype"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Modules and Genesets
+                    tabPanel("Gene Sets (Functional Characterization)",
+                             dataTableOutput("ModuleVsGeneSets"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Transcription Factors
+                    tabPanel("Transcription Factor Discovery",
+                             dataTableOutput("ModuleVsTransFactor"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Driver Perturbations
+                    tabPanel("Driver (Perturbation) Discovery",
+                             dataTableOutput("ModuleVsDriverPert"),
+                             style = "background-color: #eeeeee;"),
+                    
+                    # Table of Driver Perturbations
+                    tabPanel("Drug Discovery",
+                             dataTableOutput("ModuleVsDrug"),
+                             style = "background-color: #eeeeee;")
+                    
+                  ), width = 9
+                )
+  )
+))
+#))
+
+s <- shinyServer(function(input, output, session){
+  
+  # initially hide the tabs
+  hideTab(inputId = 'tabsetpanel', target = 'Genes')
+  hideTab(inputId = 'tabsetpanel', target = 'Modules')
+  hideTab(inputId = 'tabsetpanel', target = 'Communities')
+  hideTab(inputId = 'tabsetpanel', target = 'Phenotypes (Clinical Characterization)')
+  hideTab(inputId = 'tabsetpanel', target = 'Gene Sets (Functional Characterization)')
+  hideTab(inputId = 'tabsetpanel', target = 'Transcription Factor Discovery')
+  hideTab(inputId = 'tabsetpanel', target = 'Driver (Perturbation) Discovery')
+  hideTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
+  
+  # Initiate the Graph and the Table
+  net <- reactiveValues(nodes=NULL,edges=NULL,groups=NULL, 
+                        lnodes = NULL, ledges = NULL)
+  G_table <- reactiveValues(GeneTable = NULL, 
+                            AllGeneTable = NULL, 
+                            ModuleTable = NULL, 
+                            CommTable = NULL,
+                            PhenotypeTable = NULL,
+                            AllPhenotypeTable = NULL,
+                            GeneSetTable = NULL, 
+                            AllGeneSetTable = NULL,
+                            DriverPertTable = NULL,
+                            DriverPertGeneTable = NULL, 
+                            TransFactorTable = NULL,
+                            TransFactorGeneTable = NULL,
+                            DrugTable = NULL)
+  LookUpList <- reactiveValues(Genes = Genes,
+                               Module = Modules,
+                               Phenotype = Phenotype,
+                               GeneSet = GeneSet, 
+                               Community = Communities)
+  
+  # hide entities if not given 
+  if(is.null(Phenotype)) hide('phenotype_input')
+  if(is.null(GeneSet)) hide('geneset_input')
+  if(is.null(Drug)) hide('drug_input')
+  
+  # Observe Action Button event
+  observeEvent(input$gennet,{
+    
+    # get Input 
+    
+    # Drivers and targets
+    # if a query has been done, record it and show it later
+    gene <- input$gene
+    LookUpList$Genes <- unique(c(paste(gene,collapse = ' '),LookUpList$Genes))
+    gene <- unlist(str_extract_all(gene, regex('[A-Za-z0-9]++', multiline = TRUE)))
+    gene <- toupper(LookUpList$Genes[which(tolower(LookUpList$Genes) %in% tolower(gene))])
+    updateSelectizeInput(session,'gene',selected = gene, choices = LookUpList$Genes)
+    if(length(gene) < 1) gene <- NULL
+    gene <- list(Names = gene, ShowAll = input$showallgenes)
+    
+    # Modules
+    # if a query has been done, record it and show it later
+    module <- input$module
+    LookUpList$Module <- unique(c(paste(module,collapse = ' '),LookUpList$Module))
+    module <- unlist(str_extract_all(module, regex('[A-Z]++ Module [0-9]++', multiline = TRUE)))
+    module <- LookUpList$Module[which(tolower(LookUpList$Module) %in% tolower(module))]
+    updateSelectizeInput(session,'module',selected = module, choices = LookUpList$Module)
+    if(length(module) < 1) module <- NULL
+    module <- list(Names = module, Cohort = input$cohort)
+    
+    # Commmunities
+    # if a query has been done, record it and show it later
+    community <- input$community
+    LookUpList$Community <- unique(c(paste(community,collapse = ' '),LookUpList$Community))
+    community <- unlist(str_extract_all(community, regex('Community [0-9]++', multiline = TRUE)))
+    community <- LookUpList$Community[which(tolower(LookUpList$Community) %in% tolower(community))]
+    updateSelectizeInput(session,'community',selected = community, choices = LookUpList$Community)
+    if(length(community) < 1) community <- NULL
+    community <- list(Names = community, Casestudy = input$casestudy)
+    
+    # Inputs for Phenotypes
+    phenotype <- input$phenotype
+    LookUpList$Phenotype <- unique(c(paste(phenotype,collapse = ' '),LookUpList$Phenotype))
+    phenotype <- unlist(str_extract_all(phenotype, regex('[A-Za-z0-9-._]++', multiline = TRUE)))
+    phenotype <- LookUpList$Phenotype[which(tolower(LookUpList$Phenotype) %in% tolower(phenotype))]
+    updateSelectizeInput(session,'phenotype',selected = phenotype, choices = LookUpList$Phenotype)
+    if(length(phenotype) < 1) phenotype <- NULL
+    phenotype <- list(Names = phenotype, ShowAll = (input$showallpheno == 'Other Clinical Char.'), 
+                      ShowAllModules = (input$showallpheno == 'Other Modules'),
+                      Pvalue = input$pheno_pvalue, Qvalue = input$pheno_qvalue)
+    
+    # Inputs for Genesets (show union of selected and multiple keyword search genesets)
+    geneset <- input$geneset
+    if(!is.null(geneset)){
+      LookUpList$GeneSet <- unique(c(paste(geneset,collapse = ', '),LookUpList$GeneSet))
+      geneset <- unlist(strsplit(geneset,split = ', '))
+      geneset <- LookUpList$GeneSet[which(tolower(LookUpList$GeneSet) %in% tolower(geneset))]
+      updateSelectizeInput(session,'geneset',selected = geneset, choices = LookUpList$GeneSet) 
+    }
+    if(!is.null(input$genesetkeyword)) {
+      genesetkeyword <- str_extract_all(input$genesetkeyword, regex('[A-Za-z0-9]++', multiline = TRUE))[[1]]
+      genesetkeyword <- toupper(unique (grep(paste(tolower(genesetkeyword),collapse="|"), 
+                                             tolower(GeneSet), value=TRUE)))
+      geneset <- union(geneset,genesetkeyword)
+    }
+    if(length(geneset) < 1) geneset <- NULL
+    geneset <- list(Names = geneset, ShowAllModules = (input$showallgenesets == 'Other Modules'),
+                    Pvalue = input$geneset_pvalue, Qvalue = input$geneset_qvalue)
+    
+    # Inputs for Transcription Factors
+    transfactor <- input$transfactor
+    transfactor <- list(Names = transfactor, 
+                        ShowAll = (input$showalltransfactor == "show all transcription factors validated"), 
+                        ShowAllNonValid = (input$showalltransfactor=='show all genes validated'),
+                        Pvalue = input$transfactor_pvalue, Qvalue = input$transfactor_qvalue)
+    
+    # Inputs for Driver Perturbrations
+    driverpert <- input$driverpert
+    driverpert <- list(Names = driverpert, 
+                       ShowAll = (input$showalldriverpert == "show all drivers validated"), 
+                       ShowAllNonValid = (input$showalldriverpert=='show all genes validated'),
+                       ValStat = (input$driverpert_valstat=='ES+Pval+Padj+Zscore'))
+    
+    # Input for Drugs (Chemical Perturbations)
+    drug <- input$drug
+    if(input$drugkeyword!='') {
+      drugkeyword <- str_extract_all(input$drugkeyword, regex('[A-Za-z0-9-]++', multiline = TRUE))[[1]]
+      drugkeyword <- toupper(unique (grep(paste(tolower(drugkeyword),collapse="|"),
+                                             tolower(Drug), value=TRUE)))
+      drug <- union(drug,drugkeyword)
+    }
+    drug <- list(Names = drug, ShowAll = !is.null(drug),
+                 ShowDgidb = input$showdgidb, ShowNbclinicaltrial = input$shownbclinicaltrial)
+
+    # The user should not be able to choose 'show all' options for both
+    # Genesets and Phenotypes
+    if((geneset$ShowAll | geneset$ShowAllModules) &
+       (phenotype$ShowAll | phenotype$ShowAllModules)) {
+      updateSelectInput(session,'showallpheno', selected = 'None')
+      updateSelectInput(session,'showallgenesets', selected = 'None')
+      geneset$ShowAll <- FALSE
+      geneset$ShowAllModules <- FALSE
+      phenotype$ShowAll <- FALSE
+      phenotype$ShowAllModules <- FALSE
+    }
+    
+    # Progress Bar
+    updateProgressBar(
+      session = session,
+      id = "progress",
+      value = 0, total = 100,
+      title = paste("Initializing")
+    )
+    
+    # hide or show tabs based on entry
+    showTab(inputId = 'tabsetpanel', target = 'Modules')
+    showTab(inputId = 'tabsetpanel', target = 'Communities')
+    if(!is.null(gene$Names) | gene$ShowAll){
+      showTab(inputId = 'tabsetpanel', target = 'Genes')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Genes')
+    }
+    if(!is.null(phenotype$Names) | phenotype$ShowAll){
+      showTab(inputId = 'tabsetpanel', target = 'Phenotypes (Clinical Characterization)')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Phenotypes (Clinical Characterization)')
+    }
+    if(!is.null(geneset$Names)){
+      showTab(inputId = 'tabsetpanel', target = 'Gene Sets (Functional Characterization)')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Gene Sets (Functional Characterization)')
+    }
+    if(!is.null(transfactor$Names) | transfactor$ShowAll | transfactor$ShowAllNonValid){
+      showTab(inputId = 'tabsetpanel', target = 'Transcription Factor Discovery')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Transcription Factor Discovery')
+    }
+    if(!is.null(driverpert$Names) | driverpert$ShowAll | driverpert$ShowAllNonValid){
+      showTab(inputId = 'tabsetpanel', target = 'Driver (Perturbation) Discovery')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Driver (Perturbation) Discovery')
+    }
+    if(!is.null(drug$Names) | drug$ShowAll){
+      showTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
+    } else {
+      hideTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
+    }
+    
+    
+    # If no query has been made, return NULL
+    if(!is.null(input$gene) | !is.null(community$Names) | !is.null(phenotype$Names) | !is.null(input$geneset) | !is.null(input$drug))
+    {
+      # make a query in Neo4j server and establish the graph
+      query <- getQueryRToCypher(Gene = gene, Module = module, Phenotype = phenotype, GeneSet = geneset, 
+                                 Community = community, TransFactor = transfactor, DriverPert = driverpert, Drug = drug, 
+                                 Community_Info = Community_Info)
+      # print(query)
+      G <- query$graph%>%call_neo4j(con,type="graph")
+      
+      updateProgressBar(
+        session = session,
+        id = "progress",
+        value = 50, total = 100,
+        title = paste("Network is complete!")
+      )
+      
+      # return the graph if the graph is not empty
+      if(length(G) > 0)
+      {
+        # Create the dataframes for the Tables
+        G_table <- QuerytoTable(G_table, query, con, Community_Info)
+        
+        # Get and set node groups and colors
+        nodes <- G$nodes
+        links <- sapply(nodes$properties, function(x) return(x$link))
+        links[sapply(links, is.null)] <- NA
+        nodes <- data.frame(id = nodes$id,
+                            label= unlist(sapply(G$nodes$properties, function(x) x[grep('Name',names(x))])),
+                            group = factor(unlist(G$nodes$label)),
+                            link = unlist(links),
+                            shape = 'ellipse')
+        
+        # setting up node labels and colors
+        lnodes_color <- c('orange','green','cadetblue','cornflowerblue', 'pink','grey','beige', 'darkturquoise')
+        lnodes_label <- c('Gene','Module','Community','Phenotype', 'GeneSet','TransFactor','DriverPert', 'Drug')
+        nodes$color <- lnodes_color[match(unlist(G$nodes$label),lnodes_label)]
+        new_labels <- which(lnodes_color %in% nodes$color)
+        lnodes_label <- c('Gene','Module','Community','Phenotype', 'Gene Set','Trans.Factor.','Driver.Pert.', 'Drug')
+        lnodes <- data.frame(label = lnodes_label[new_labels], shape = c("ellipse"), 
+                             color = lnodes_color[new_labels])     
+        # setting edges 
+        edges <- G$relationships
+        edges <- data.frame(from = edges$startNode, to = edges$endNode)
+        type <- G$relationships$type
+        properties <- G$relationships$properties
+        
+        # setting up edge labels and colors
+        EdgePropertiesCohort <- lapply(properties, function(x){
+          if('Type' %in% names(x)){
+            if(x[['Type']]=='Driver(+)' | x[['Type']]=='Driver(-)' | x[['Type']]=='Target' | x[['Type']]=='Targeting' |  x[['Type']]=='trt_oe' |  x[['Type']]=='trt_sh.cgs' | x[['Type']]=='Worse' | x[['Type']]=='Better'){
+              return(x[['Type']])
+            }
+            if(x[['Type']]=='0'){
+              return('Pvalue')
+            }
+          } else{
+            return('Pvalue')
+          }
+        })
+        EdgePropertiesCohort <- unlist(EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Pvalue', 'Associates',EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'trt_oe', 'Overexpressed (CMAP)',EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'trt_sh.cgs', 'Knockdown (CMAP)',EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Worse', 'Shorter Survival',EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Better', 'Better Survival',EdgePropertiesCohort)
+        EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Targeting', 'Targeting (TransFactor)',EdgePropertiesCohort)
+        ledges_color <- c('red','blue','saddlebrown','dodgerblue','orange','grey','red','blue','black')
+        ledges_label <- c('Shorter Survival','Better Survival','Overexpressed (CMAP)','Knockdown (CMAP)','Targeting (TransFactor)', "Associates", 'Driver(+)', "Driver(-)",'Target')
+        edges$color <- ledges_color[match(unlist(EdgePropertiesCohort),ledges_label)]
+        labels <- ledges_label[match(unlist(EdgePropertiesCohort),ledges_label)]
+        new_labels <- which(ledges_label %in% labels)
+        ledges_color <- ledges_color[new_labels]
+        ledges_label <- ledges_label[new_labels]
+        ledges <- data.frame(color = ledges_color, label = ledges_label, font.align = "top")
+        
+        # reversing target gene associations to modules
+        edges <- as.matrix(edges)
+        edges[edges[,'color']=='black',1:2] <- rev(edges[edges[,'color']=='black',1:2])
+        edges <- as.data.frame(edges)
+        
+        # pass the network to server
+        net$nodes <- nodes
+        net$edges <- edges
+        net$lnodes <- lnodes
+        net$ledges <- ledges
+        
+        # if the query result it empty, return an empty graph
+      } else {
+        net$nodes <- NULL
+        G_table <- NULL
+      }
+    } else {
+      net$nodes <- NULL
+      G_table <- NULL
+    }
+    updateProgressBar(
+      session = session,
+      id = "progress",
+      value = 100, total = 100,
+      title = paste("Tables are complete!")
+    )
+  })
+  output$visnetwork <- renderVisNetwork({ 
+    req(net$edges)
+    
+    # visualize graph, if there no graph, return empty graph
+    if(!is.null(net$nodes)){
+      
+      netout <- visNetwork(net$nodes,net$edges) %>% visEdges(arrows = 'to') %>% 
+        visOptions(highlightNearest	= list(enabled = TRUE, labelOnly = FALSE)) %>%
+        visNodes(borderWidthSelected = 1) %>%
+        visIgraphLayout(smooth = TRUE) %>%
+        visLegend(addNodes = net$lnodes, addEdges = net$ledges, useGroups = FALSE) %>% 
+        visEvents(doubleClick = "function(properties) {window.open(this.body.data.nodes._data[properties.nodes[0]].link);}")
+      
+    } else {
+      
+      netout <- visNetwork(data.frame(label='No Result',shape='square'))
+    
+    }
+    
+    netout
+  })
+  
+  # set the table outputs
+  output$GeneVsModule <- renderDT(G_table$GeneTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), pageLength = 25, lengthMenu = list(c(5,10, 25, 100), list('5', '10', '25','100'))), 
+                                  filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$ModuleOverview <- renderDT(G_table$ModuleTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), autoWidth = TRUE),
+                                    filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$CommunityOverview <- renderDT(G_table$CommTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), autoWidth = TRUE),
+                                       filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$ModuleVsPhenotype <- renderDT(G_table$PhenotypeTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), pageLength = 25, lengthMenu = list(c(5,10, 25, 100), list('5', '10', '25','100'))),
+                                       filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$ModuleVsGeneSets <- renderDT(G_table$GeneSetsTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), autoWidth = TRUE),
+                                      filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$ModuleVsTransFactor <- renderDT(G_table$TransFactorTable, options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print')), 
+                                         filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  output$ModuleVsDriverPert <- renderDT(G_table$DriverPertTable, filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE,
+                                        options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), autoWidth = TRUE, scrollX = TRUE, 
+                                                       columnDefs = list(list(width = '550px', targets = c(13)))))
+  output$ModuleVsDrug <- renderDT(G_table$DrugTable, options = list(pageLength = 20, lengthMenu = list(c(5,10, 20, 100), list('5', '10', '20','100')), dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print')), 
+                                         filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
+  # output$ModuleVsDrug <- renderDT(G_table$DrugTable,options = list(pageLength = 20, lengthMenu = list(c(5,10, 20, 100), list('5', '10', '20','100'))))
+})
+shinyApp(u,s, options = list(height=2500))
+```
+
