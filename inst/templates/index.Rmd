@@ -322,7 +322,7 @@ s <- shinyServer(function(input, output, session){
     
     # Inputs for Phenotypes
     phenotype <- input$phenotype
-    LookUpList$Phenotype <- unique(c(paste(phenotype,collapse = ' '),LookUpList$Phenotype))
+    LookUpList$Phenotype <- unique(c(paste(phenotype,collapse = ', '),LookUpList$Phenotype))
     phenotype <- unlist(str_extract_all(phenotype, regex('[A-Za-z0-9-._]++', multiline = TRUE)))
     phenotype <- LookUpList$Phenotype[which(tolower(LookUpList$Phenotype) %in% tolower(phenotype))]
     updateSelectizeInput(session,'phenotype',selected = phenotype, choices = LookUpList$Phenotype)

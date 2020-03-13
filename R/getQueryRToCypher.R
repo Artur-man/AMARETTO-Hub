@@ -295,7 +295,7 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
     # clause_with <- ' WITH '
     
     # match and where clauses
-    clause_match <- paste(clause_match, 'MATCH',RelationShipVar(RsId),
+    clause_match <- paste(clause_match, 'OPTIONAL MATCH',RelationShipVar(RsId),
                           getClauseModuleToTransFactor(GeneInd = GeneInd(GeneId), GTMInd = GTMInd(GTMId),
                                                        MTTInd = MTTInd(MTTId),
                                                        TransFactorInd = TransFactorInd(TransFactorId)))
@@ -338,7 +338,7 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
   ##########################
     
   if(DriverPert$ShowAll | DriverPert$ShowAllNonValid){
-    clause_match <- paste(clause_match, 'MATCH',RelationShipVar(RsId),
+    clause_match <- paste(clause_match, 'OPTIONAL MATCH',RelationShipVar(RsId),
                           getClauseModuleToDriverPert(GeneInd = GeneInd(GeneId), GTMInd = GTMInd(GTMId),
                                                       MTDInd = MTDInd(MTDId), DriverPertInd = DriverPertInd(DriverPertId)))
 

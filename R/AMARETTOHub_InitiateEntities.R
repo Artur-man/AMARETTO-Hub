@@ -117,7 +117,7 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
     write.csv(hgtest_tbl, file = cohort_file)
   }
 
-  # Parse Gene sets
+  # Parse Phenotypes
   cat('Preparing CSVs for Clinical Characterizations ... \n')
   for(i in 1:length(phenotype_tests_all)){
 
