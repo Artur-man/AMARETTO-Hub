@@ -2,7 +2,7 @@ Package: AMARETTOHub
 Type: Package
 Title: AMARETT0-Hub: a Knowledge Graph-based Platform
 Version: 1.0
-Depends: dplyr, tibble, reshape2, stringr, neo4r, Matrix, CommunityAMARETTO
+Depends: neo4r, Matrix, CommunityAMARETTO, reshape2, dplyr, stringr
 Date: 2020-03-07
 Author: Artur Manukyan, Mohsen Nabian, Nathalie Pochet
 Maintainer: Artur Manukyan <amanukya@broadinstitute.org>
