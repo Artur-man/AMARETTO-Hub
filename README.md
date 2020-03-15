@@ -20,6 +20,6 @@ Install from the GitHub repository using devtools:
     library(devtools)
     devtools::install_github("broadinstitute/AMARETTO-Hub")
 
-## Running Imaging-AMARETTO
+## Running AMARETTO-Hub
 
 ## References
