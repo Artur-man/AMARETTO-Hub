@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://github.com/broadinstitute/AMARETTO-Hub/">
-    <img height="400" src="https://github.com/broadinstitute/AMARETTO-Hub/blob/master/inst/extdata/metadata.png">
+    <img height="400" src="https://github.com/broadinstitute/AMARETTO-Hub/blob/master/inst/extdata/metadata.pdf">
   </a>
   <h1 align="center"></h1>
 </p>
