@@ -2,19 +2,24 @@
 #' 
 #' This function creates necessary CSV files to import Entities to Neo4j server
 #'
-#' @param AMARETTODirectory The AMARETTO Directory
+#' @param Neo4j_Dir the path to directory that Neo4j files to be stored.
 #' @param AMARETTOlink The link to the HTML reports 
-#' @param cAMARETTO_Results Community AMARETTO results 
+#' @param cAMARETTO_Results Community AMARETTO result
 #' @param AMARETTO_Results The list of AMARETTO results 
 #' @param AMARETTOinits The list of AMARETTO init objects 
-#' @param hgtest_tbl_all The data table of Module vs Genesets 
-#' @param phenotype_tests_all The data table of Module vs Phenotypes
+#' @param hgtest_tbl_all The list of all Functional Enrichments of Modules tables
+#' @param phenotype_tests_all The list of all Phenotype association tables 
 #' 
 #' @importFrom rlang .data
 #'
-AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARETTO_Results, AMARETTO_Results, AMARETTOinits,
+AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Results, AMARETTO_Results, AMARETTOinits,
                                          hgtest_tbl_all, phenotype_tests_all) 
 {
+  # If mandatory objects are not provided, stop!
+  if(is.null(cAMARETTO_Results) | is.null(AMARETTOinits) | is.null(cAMARETTO_Results)){
+    stop('cAMARETTO_Results, AMARETTOinits and cAMARETTO_Results objects should be provided!')
+  }
+  
   # Websites for Genes and Genesets
   Genesetwebsite <- 'https://www.gsea-msigdb.org/gsea/msigdb/cards/'
   Genewebsite <- 'https://www.genecards.org/cgi-bin/carddisp.pl?gene='
@@ -23,16 +28,16 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
   Cohorts <- cAMARETTO_Results$cAMARETTOresults$runnames
   
   # Neo4j directory
-  if(!dir.exists(paste0(AMARETTODirectory,'/Neo4j_import')))
-    dir.create(paste0(AMARETTODirectory,'/Neo4j_import'))
+  if(!dir.exists(Neo4j_Dir))
+    dir.create(Neo4j_Dir)
   
   # Parse Modules, Drivers and Targets
   cat('Preparing CSVs for Modules, Drivers and Targets ... \n')
-  for(i in 1:length(AMARETTO_Results)){
+  for(cohort in Cohorts){
 
     # Collecting init and results file of AMARETTO of a single cohort
-    AMARETTOinit <- AMARETTOinits[[i]]
-    AMARETTO_Result <- AMARETTO_Results[[i]]
+    AMARETTOinit <- AMARETTOinits[[cohort]]
+    AMARETTO_Result <- AMARETTO_Results[[cohort]]
 
     # Extract Modules and Target Genes summaries
     ModuleOverview <- data.frame(Genes = rownames(AMARETTO_Result$ModuleMembership),
@@ -56,10 +61,10 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
     ModuleOverview <- ModuleOverview %>% dplyr::mutate(DriverList = RegulatorList)
     ModuleOverview <- ModuleOverview %>% dplyr::mutate(TargetGenes = .data$NumberOfGens-.data$DriverGenes)
     modules <- gsub('Module ','module', ModuleOverview$ModuleNr)
-    Modules_link <- paste0(AMARETTOlink,Cohorts[i],'/AMARETTOhtmls/modules/',modules,'.html')
+    Modules_link <- paste0(AMARETTOlink,cohort,'/AMARETTOhtmls/modules/',modules,'.html')
     ModuleOverview <- data.frame(ModuleOverview, Link = Modules_link,
                                ModuleNameLink = paste0('<a href="', Modules_link, '" target="_blank">', ModuleOverview$ModuleNr, '</a>'))
-    cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/', Cohorts[i], '_ModuleOverview.csv')
+    cohort_file <- paste0(Neo4j_Dir, cohort, '_ModuleOverview.csv')
     write.csv(ModuleOverview, file = cohort_file)
 
     # Collect Drivers
@@ -70,8 +75,8 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
     DriverGeneData <- data.frame(Genes = names(unlist(DriverList)), Coef = unlist(DriverList),
                                  Module = ModuleRow)
 
-    # Indicate activators (Driver(+)) and suppressors (Driver(-))
-    DriverGeneData <- as_tibble(DriverGeneData) %>% dplyr::mutate(Type = ifelse(.data$Coef > 0,'Driver(+)','Driver(-)'))
+    # Indicate activators (Activator) and suppressors (Repressor)
+    DriverGeneData <- as_tibble(DriverGeneData) %>% dplyr::mutate(Type = ifelse(.data$Coef > 0,'Activator','Repressor'))
     RegulatorAlterations <- AMARETTOinit$RegulatorAlterations$Summary
     RegulatorAlterations <- RegulatorAlterations[as.character(DriverGeneData$Genes),] + 1
 
@@ -95,54 +100,60 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
     Genes_link <- paste0(Genewebsite,GenesData$Genes)
     GenesData <- data.frame(GenesData, Link = Genes_link,
                             GeneNameLink = paste0('<a href="', Genes_link, '" target="_blank">', GenesData$Genes, '</a>'))
-    cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/', Cohorts[i], '_GenesData.csv')
+    cohort_file <- paste0(Neo4j_Dir, cohort, '_GenesData.csv')
     write.csv(GenesData, file = cohort_file)
   }
 
   # Parse Gene sets
-  cat('Preparing CSVs for Functional Categories ... \n')
-  for(i in 1:length(hgtest_tbl_all)){
-
-    # Collecting hypergeometric test results of AMARETTO modules vs Functional Categories
-    # with respect to a single cohort
-    hgtest_tbl <- hgtest_tbl_all[[i]]
-
-    # Collect all and create csv for Functional Categories
-    hgtest_tbl$Testset <- gsub('_',' ',hgtest_tbl$Testset)
-    hgtest_tbl$Geneset <- gsub('<.*?>','',hgtest_tbl$Geneset)
-    Genesets_link <- paste0(Genesetwebsite, gsub(' ','_',hgtest_tbl$Geneset))
-    hgtest_tbl <- data.frame(hgtest_tbl, Link = Genesets_link,
+  if(!is.null(hgtest_tbl_all)){
+    
+    cat('Preparing CSVs for Functional Categories ... \n')
+    for(cohort in Cohorts){
+      
+      # Collecting hypergeometric test results of AMARETTO modules vs Functional Categories
+      # with respect to a single cohort
+      hgtest_tbl <- hgtest_tbl_all[[cohort]]
+      
+      # Collect all and create csv for Functional Categories
+      hgtest_tbl$Testset <- gsub('_',' ',hgtest_tbl$Testset)
+      hgtest_tbl$Geneset <- gsub('<.*?>','',hgtest_tbl$Geneset)
+      Genesets_link <- paste0(Genesetwebsite, gsub(' ','_',hgtest_tbl$Geneset))
+      hgtest_tbl <- data.frame(hgtest_tbl, Link = Genesets_link,
                                GenesetNameLink = paste0('<a href="', Genesets_link, '" target="_blank">', hgtest_tbl$Geneset, '</a>'))
-    cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/', Cohorts[i], '_hgtest_tbl.csv')
-    write.csv(hgtest_tbl, file = cohort_file)
+      cohort_file <- paste0(Neo4j_Dir, cohort, '_hgtest_tbl.csv')
+      write.csv(hgtest_tbl, file = cohort_file)
+    }
   }
 
   # Parse Phenotypes
-  cat('Preparing CSVs for Clinical Characterizations ... \n')
-  for(i in 1:length(phenotype_tests_all)){
-
-    phenotype_tests <- phenotype_tests_all[[i]]
-
-    # Collecting hypergeometric test results of AMARETTO modules vs Clinical Characterizations (Phenotypes)
-    # with respect to a single cohort
-    colnames(phenotype_tests) <- gsub('\\.','',colnames(phenotype_tests))
-    levels_phenotype <- levels(factor(phenotype_tests$Phenotypes))
-    levels_phenotype <- gsub("\\s*\\([^\\)]+\\)","",as.character(levels_phenotype))
-    levels_phenotype <- gsub(",","",as.character(levels_phenotype))
-    temp <- factor(phenotype_tests$Phenotypes)
-    levels(temp) <- levels_phenotype
-    phenotype_tests$Phenotypes <- temp
-
-    # Tag survival phenotypes as Worse and Better survival based on Beta statistics
-    phenotype_tests$Type <- 0
-    beta <- strsplit(phenotype_tests$Descriptive_Statistics[grepl('Beta',phenotype_tests$Descriptive_Statistics)],split = ' ')
-    beta <- as.numeric(gsub(',','',sapply(beta,function(x) return(x[2]),simplify = TRUE)))
-    beta <- ifelse(beta > 0,'Worse','Better')
-    phenotype_tests$Type[grepl('Beta',phenotype_tests$Descriptive_Statistics)] <- beta
-
-    # Collect and create csv for Clinical Characterizations
-    cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/', Cohorts[i], '_phenotype_tests.csv')
-    write.csv(phenotype_tests, file = cohort_file)
+  if(!is.null(phenotype_tests_all)){
+    
+    cat('Preparing CSVs for Clinical Characterizations ... \n')
+    for(cohort in Cohorts){
+  
+      phenotype_tests <- phenotype_tests_all[[cohort]]
+  
+      # Collecting hypergeometric test results of AMARETTO modules vs Clinical Characterizations (Phenotypes)
+      # with respect to a single cohort
+      colnames(phenotype_tests) <- gsub('\\.','',colnames(phenotype_tests))
+      levels_phenotype <- levels(factor(phenotype_tests$Phenotypes))
+      levels_phenotype <- gsub("\\s*\\([^\\)]+\\)","",as.character(levels_phenotype))
+      levels_phenotype <- gsub(",","",as.character(levels_phenotype))
+      temp <- factor(phenotype_tests$Phenotypes)
+      levels(temp) <- levels_phenotype
+      phenotype_tests$Phenotypes <- temp
+  
+      # Tag survival phenotypes as Worse and Better survival based on Beta statistics
+      phenotype_tests$Type <- 0
+      beta <- strsplit(phenotype_tests$Descriptive_Statistics[grepl('Beta',phenotype_tests$Descriptive_Statistics)],split = ' ')
+      beta <- as.numeric(gsub(',','',sapply(beta,function(x) return(x[2]),simplify = TRUE)))
+      beta <- ifelse(beta > 0,'Worse','Better')
+      phenotype_tests$Type[grepl('Beta',phenotype_tests$Descriptive_Statistics)] <- beta
+  
+      # Collect and create csv for Clinical Characterizations
+      cohort_file <- paste0(Neo4j_Dir, cohort, '_phenotype_tests.csv')
+      write.csv(phenotype_tests, file = cohort_file)
+    }
   }
   
   # Parse Communities 
@@ -170,7 +181,7 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
   Communities_link <- paste0(AMARETTOlink,'communities/',communities,'.html')
   ComModule <- data.frame(ComModule, Link = Communities_link, 
                           CommunityNameLink = paste0('<a href="', Communities_link, '" target="_blank">', ComModule$Community, '</a>'))
-  cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/RegulatoryModulesOfCommunities.csv')
+  cohort_file <- paste0('Neo4j_import/RegulatoryModulesOfCommunities.csv')
   write.csv(ComModule, file = cohort_file)
   
   # Return headers of community tables for importing tables later
@@ -182,7 +193,7 @@ AMARETTOHub_InitiateEntities <- function(AMARETTODirectory, AMARETTOlink, cAMARE
                                                                 Community, paste0('Community ',Community)), 
                                              ModuleNr = paste(Run_Names,ModuleNr, sep = ' ')) %>% 
     dplyr::select(Community, ModuleNr)
-  cohort_file <- paste0(AMARETTODirectory, '/Neo4j_import/CommunitiesToModule.csv')
+  cohort_file <- paste0('Neo4j_import/CommunitiesToModule.csv')
   write.csv(cm_gene_df, file = cohort_file)
   
   # return

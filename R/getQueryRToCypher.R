@@ -93,7 +93,7 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
     clause_match <- paste(clause_match, 'MATCH',RelationShipVar(RsId),getClauseGeneToModule(GeneInd = GeneInd(GeneId),
                                                                  GTMInd = GTMInd(GTMId)))
     clause_where <- paste0(clause_where, GTMInd(GTMId), 
-                     ".Type IN ['", paste(c('Driver(+)','Driver(-)'), sep='', collapse = "','"),"']",' AND ')
+                     ".Type IN ['", paste(c('Activator','Repressor'), sep='', collapse = "','"),"']",' AND ')
     clause_table[['allgenes']] <- paste0('RETURN DISTINCT ',GeneInd(GeneId), '.namelink, ',
                                          'module.namelink, ',
                                     'community.namelink, ',
@@ -304,7 +304,7 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
     clause_where <- paste0(clause_where, MTTInd(MTTId), ".Pvalue < ", TransFactor$Pvalue,' AND ')
     if(TransFactor$ShowAll){
       clause_where <- paste0(clause_where, GTMInd = GTMInd(GTMId), 
-                             ".Type IN ['", paste(c('Driver(+)','Driver(-)'), sep='', collapse = "','"),"']",' AND ')
+                             ".Type IN ['", paste(c('Activator','Repressor'), sep='', collapse = "','"),"']",' AND ')
     }
     
     clause_table[['transfactors']] <- paste0('RETURN DISTINCT ', TransFactorInd(TransFactorId), '.TransFactorName AS V56, ',
@@ -352,7 +352,7 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
     
     if(DriverPert$ShowAll){
       clause_where <- paste0(clause_where, GTMInd = GTMInd(GTMId),
-                             ".Type IN ['", paste(c('Driver(+)','Driver(-)'), sep='', collapse = "','"),"']",' AND ')
+                             ".Type IN ['", paste(c('Activator','Repressor'), sep='', collapse = "','"),"']",' AND ')
     }
 
     clause_table[['driverperts']] <- paste0('RETURN DISTINCT ',

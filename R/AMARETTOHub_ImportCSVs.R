@@ -2,11 +2,11 @@
 #' 
 #' This function import CSV files to Neo4j server  
 #'
-#' @param AMARETTODirectory The AMARETTO Directory
+#' @param Neo4j_Dir the path to directory that Neo4j files to be stored.
 #' @param con_info The list of necessary Neo4j server information: url, username and password 
 #' @param Community_Info A list of information on Community AMARETTO: (1) a vector of cohort names and (2) type of nodes in Community AMARETTO
 #' 
-AMARETTOHub_ImportCSVs <- function(AMARETTODirectory, con_info, Community_Info){
+AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
   
   # establish communication with neo4j server
   con <- neo4r::neo4j_api$new(
@@ -20,12 +20,11 @@ AMARETTOHub_ImportCSVs <- function(AMARETTODirectory, con_info, Community_Info){
   
   # Detect existing files in the Neo4j folder
   file_type <- c('Communities','ModuleOverview','Genes','hgtest','phenotype')
-  Neo4j_dir <- paste0(AMARETTODirectory,'/Neo4j_import/')
-  CSVfile_list <- list.files(Neo4j_dir)
+  CSVfile_list <- list.files(Neo4j_Dir)
   file_type_exists <- apply(sapply(file_type, function(x) return(stringr::str_detect(CSVfile_list,x))),2,any)
   
   # Import query_header
-  query_header <- paste0('USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM "file:',getwd(),'/',Neo4j_dir)
+  query_header <- paste0('USING PERIODIC COMMIT LOAD CSV WITH HEADERS FROM "file:',getwd(),'/',Neo4j_Dir)
   
   # Set uniqueness constraints of Entities
   query <- paste0('CREATE CONSTRAINT ON (module:Module) ASSERT module.ModuleName IS UNIQUE ',

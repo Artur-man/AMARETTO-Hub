@@ -5,7 +5,7 @@
 \title{AMARETTOHub_InitiateEntities}
 \usage{
 AMARETTOHub_InitiateEntities(
-  AMARETTODirectory,
+  Neo4j_Dir,
   AMARETTOlink,
   cAMARETTO_Results,
   AMARETTO_Results,
@@ -15,19 +15,19 @@ AMARETTOHub_InitiateEntities(
 )
 }
 \arguments{
-\item{AMARETTODirectory}{The AMARETTO Directory}
+\item{Neo4j_Dir}{the path to directory that Neo4j files to be stored.}
 
 \item{AMARETTOlink}{The link to the HTML reports}
 
-\item{cAMARETTO_Results}{Community AMARETTO results}
+\item{cAMARETTO_Results}{Community AMARETTO result}
 
 \item{AMARETTO_Results}{The list of AMARETTO results}
 
 \item{AMARETTOinits}{The list of AMARETTO init objects}
 
-\item{hgtest_tbl_all}{The data table of Module vs Genesets}
+\item{hgtest_tbl_all}{The list of all Functional Enrichments of Modules tables}
 
-\item{phenotype_tests_all}{The data table of Module vs Phenotypes}
+\item{phenotype_tests_all}{The list of all Phenotype association tables}
 }
 \description{
 This function creates necessary CSV files to import Entities to Neo4j server

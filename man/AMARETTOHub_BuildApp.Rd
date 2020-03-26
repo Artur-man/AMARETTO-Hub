@@ -4,12 +4,10 @@
 \alias{AMARETTOHub_BuildApp}
 \title{AMARETTOHub_BuildApp}
 \usage{
-AMARETTOHub_BuildApp(AppTitle, AMARETTODirectory, con_info, Community_Info)
+AMARETTOHub_BuildApp(AppTitle, con_info, Community_Info)
 }
 \arguments{
 \item{AppTitle}{The title of the App}
-
-\item{AMARETTODirectory}{The AMARETTO Directory}
 
 \item{con_info}{The list of necessary Neo4j server information: url, username and password}
 

@@ -4,10 +4,10 @@
 \alias{AMARETTOHub_ImportCSVs}
 \title{AMARETTOHub_ImportCSVs}
 \usage{
-AMARETTOHub_ImportCSVs(AMARETTODirectory, con_info, Community_Info)
+AMARETTOHub_ImportCSVs(Neo4j_Dir, con_info, Community_Info)
 }
 \arguments{
-\item{AMARETTODirectory}{The AMARETTO Directory}
+\item{Neo4j_Dir}{the path to directory that Neo4j files to be stored.}
 
 \item{con_info}{The list of necessary Neo4j server information: url, username and password}
 

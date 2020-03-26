@@ -4,8 +4,8 @@ output:
   html_document:
     theme: cerulean
     includes:
-      in_header: run/tag.html
-      before_body: run/navbar.html
+      in_header: AppFiles/tag.html
+      before_body: AppFiles/navbar.html
 runtime: shiny
 ---
 
@@ -145,55 +145,8 @@ u <- tagList(
                              )
                              )
                     )
-                  ),
-                  hr(),
-                  fluidRow(
-                    column(7,
-                           # Select Transcription Factors 
-                           h4("Transcription Factor Discovery:"),
-                           br(),
-                           radioButtons('showalltransfactor',NULL, 
-                                        c('show none','show all transcription factors validated',
-                                          'show all genes validated')),
-                           fluidRow(
-                             column(6,numericInput('transfactor_pvalue','P-value', value = 0.05)),
-                             column(6,numericInput('transfactor_qvalue','FDR Q-value', value = 0.05)),
-                           )
-                           ),
-                    column(5,
-                           # Select Driver Perturbration
-                           h4("Driver Discovery:"),
-                           br(),
-                           radioButtons('showalldriverpert',NULL, 
-                                        c('show none','show all drivers validated',
-                                          'show all genes validated')),
-                           fluidRow(
-                             selectInput('driverpert_valstat','Validation Status', selected = 'ES+Pval+Padj',
-                                         choices = c('ES+Pval+Padj','ES+Pval+Padj+Zscore')),
-                           )
-                           )
-                  ), 
-                  hr(),
-                  div(id = 'drug_input',
-                    fluidRow(column(6,h4("Drug Discovery:"))),
-                    fluidRow(
-                      column(6,
-                             fluidRow(
-                               column(4,h6('Search:')),
-                               column(8,textInput('drugkeyword',NULL))
-                             ),
-                             fluidRow(
-                               column(3,h6('Select:')),
-                               column(9,selectizeInput('drug',NULL,Drug, multiple=TRUE, options = list(create=TRUE)))
-                             ),                           
-                             ),
-                      column(6,
-                             sliderInput('showdgidb','# of DGIDB References',min = 0, max = 10,value = c(0,10)),
-                             sliderInput('shownbclinicaltrial','# of Clinical trials',min = 0, max = max(NBCT)+1, value = c(0,round(max(NBCT)/2)))
-                             )
-                    )
                   )
-                  ,width = 3
+                  , width = 3
                 ),
                 # Main Panel 
                 mainPanel(
@@ -479,7 +432,7 @@ s <- shinyServer(function(input, output, session){
         # setting up edge labels and colors
         EdgePropertiesCohort <- lapply(properties, function(x){
           if('Type' %in% names(x)){
-            if(x[['Type']]=='Driver(+)' | x[['Type']]=='Driver(-)' | x[['Type']]=='Target' | x[['Type']]=='Targeting' |  x[['Type']]=='trt_oe' |  x[['Type']]=='trt_sh.cgs' | x[['Type']]=='Worse' | x[['Type']]=='Better'){
+            if(x[['Type']]=='Activator' | x[['Type']]=='Repressor' | x[['Type']]=='Target' | x[['Type']]=='Targeting' |  x[['Type']]=='trt_oe' |  x[['Type']]=='trt_sh.cgs' | x[['Type']]=='Worse' | x[['Type']]=='Better'){
               return(x[['Type']])
             }
             if(x[['Type']]=='0'){
@@ -497,7 +450,7 @@ s <- shinyServer(function(input, output, session){
         EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Better', 'Better Survival',EdgePropertiesCohort)
         EdgePropertiesCohort <- ifelse(EdgePropertiesCohort == 'Targeting', 'Targeting (TransFactor)',EdgePropertiesCohort)
         ledges_color <- c('red','blue','saddlebrown','dodgerblue','orange','grey','red','blue','black')
-        ledges_label <- c('Shorter Survival','Better Survival','Overexpressed (CMAP)','Knockdown (CMAP)','Targeting (TransFactor)', "Associates", 'Driver(+)', "Driver(-)",'Target')
+        ledges_label <- c('Shorter Survival','Better Survival','Overexpressed (CMAP)','Knockdown (CMAP)','Targeting (TransFactor)', "Associates", 'Activator', "Repressor",'Target')
         edges$color <- ledges_color[match(unlist(EdgePropertiesCohort),ledges_label)]
         labels <- ledges_label[match(unlist(EdgePropertiesCohort),ledges_label)]
         new_labels <- which(ledges_label %in% labels)
