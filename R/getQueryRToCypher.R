@@ -1,8 +1,8 @@
-getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, TransFactor, DriverPert, Drug, Community_Info)
+getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, TransFactor, DriverPert, Community_Info)
 {
   # Index variables for queries
   RsId <- GeneId <- PhenoId <- GeneSetId <- ModuleId <- CommId <- 1
-  TransFactorId <- DriverPertId <- DrugId <- 1
+  TransFactorId <- DriverPertId <- 1
   GTMId <- MTPId <- MTGId <- MTDId <- MTTId <- MTDrId <- CTMId <- 1
   inc <- function(x) eval.parent(substitute(x <- x + 1))
   RelationShipVar <- function(RsId) return(paste0('rs',RsId,'=')) 
@@ -14,7 +14,6 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
   GeneSetInd <- function(GeneSetId) return(paste0('gs',GeneSetId)) 
   DriverPertInd <- function(DriverPertId) return(paste0('dp',DriverPertId)) 
   TransFactorInd <- function(TransFactorId) return(paste0('tf',TransFactorId)) 
-  DrugInd <- function(DrugInd) return(paste0('drug',DrugInd)) 
   GTMInd <- function(GTMId) return(paste0('gtm',GTMId)) 
   CTMInd <- function(CTMId) return(paste0('ctm',CTMId)) 
   MTPInd <- function(MTPId) return(paste0('mtp',MTPId)) 
@@ -389,41 +388,6 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
                                              GTMInd(GTMId), '.CNV AS V93')
     inc(RsId); inc(GeneId); inc(GTMId); inc(MTDId); inc(DriverPertId)
   }
-    
-  #################################
-  # Chemical Perturbations (Drugs)
-  #################################
-  
-  if(Drug$ShowAll){
-    clause_match <- paste(clause_match, 'MATCH',RelationShipVar(RsId),
-                          getClauseModuleToDrug(MTDrInd = MTDrInd(MTDrId), DrugInd = DrugInd(DrugId)))
-    if(!is.null(Drug$Name))
-      clause_where <- paste0(clause_where, DrugInd = DrugInd(DrugId),
-                             ".DrugName IN ['", paste(Drug$Name, sep='', collapse = "','"),"']",' AND ')
-    
-    clause_where <- paste0(clause_where, DrugInd = DrugInd(DrugId),
-                           ".NbClinicalTrials >= ", Drug$ShowNbclinicaltrial[1],' AND ')
-    clause_where <- paste0(clause_where, DrugInd = DrugInd(DrugId),
-                           ".NbClinicalTrials <= ", Drug$ShowNbclinicaltrial[2],' AND ')
-    
-    clause_where <- paste0(clause_where, MTDrInd = MTDrInd(MTDrId),
-                           ".NbDGIdbDrugGeneInteractions >= ", Drug$ShowDgidb[1],' AND ')
-    clause_where <- paste0(clause_where, MTDrInd = MTDrInd(MTDrId),
-                           ".NbDGIdbDrugGeneInteractions <= ", Drug$ShowDgidb[2],' AND ')
-    
-    clause_table[['drugs']] <- paste0('RETURN DISTINCT ','community.namelink, ',
-                                      'module.namelink, ',
-                                      DrugInd(DrugId), '.DrugName AS V96, ',
-                                      MTDrInd(MTDrId), '.DGIDB_Genes AS V105, ', 
-                                      MTDrInd(MTDrId), '.NbDGIdbDrugGeneInteractions AS V106, ',
-                                      DrugInd(DrugId), '.NbClinicalTrials AS V107, ',
-                                      DrugInd(DrugId), '.NbClinicalTrialsPhase1 AS V108, ', 
-                                      DrugInd(DrugId), '.NbClinicalTrialsPhase2 AS V109, ',
-                                      DrugInd(DrugId), '.NbClinicalTrialsPhase3 AS V110, ',
-                                      DrugInd(DrugId), '.NbClinicalTrialsPhase4 AS V111'
-    )
-    inc(RsId); inc(DrugId); inc(MTDrId);
-  }     
   
   # delete last AND and add WHERE Clause
   clause_where <- substr(clause_where, 1, nchar(clause_where)-5)
@@ -435,9 +399,6 @@ getQueryRToCypher <- function(Gene, Module, Phenotype, GeneSet, Community, Trans
 
   # Add RETURN clauses for the graph and return
   clause_match <- paste0(clause_match,' RETURN ',paste('rs',1:(RsId-1), sep='', collapse = ','))
-  
-  print(clause_match)
-  print(clause_table)
   
   return(list(graph = clause_match, table = clause_table))
 }
@@ -597,22 +558,6 @@ QuerytoTable <- function(G_table, query, con, Community_Info){
   G_table$DriverPertTable <- tibble::as_tibble(G_table$DriverPertTable) %>% dplyr::distinct()
   colnames(G_table$DriverPertTable) <- colnames(DriverPertTable)
   
-  # Drug Table
-  DrugTable <- data.frame(Community = character(0), Module = character(0), Compound = character(0),
-                                DGIdbDrugGeneInteractions = character(0),
-                                NbDGIdbDrugGeneInteractions = numeric(0), NbClinicalTrials = numeric(0), 
-                                NbClinicalTrialsPhase1 = numeric(0),NbClinicalTrialsPhase2 = numeric(0),
-                                NbClinicalTrialsPhase3 = numeric(0),NbClinicalTrialsPhase4 = numeric(0))
-  
-  if(!is.null(query$table[['drugs']])){
-    G_table$DrugTable <- data.frame(query$table[['drugs']]%>%neo4r::call_neo4j(con,type="row"))
-    colnames(G_table$DrugTable) <- colnames(DrugTable)
-  } else {
-    G_table$DrugTable  <- DrugTable
-  }
-  G_table$DrugTable <- tibble::as_tibble(G_table$DrugTable) %>% dplyr::distinct()
-  colnames(G_table$DrugTable) <- colnames(DrugTable)
-  
   # All other modules
   if(!is.null(query$table[['modules']])) {
     G_table$ModuleTable <- data.frame(query$table[['modules']]%>%neo4r::call_neo4j(con,type="row"))
@@ -625,14 +570,6 @@ QuerytoTable <- function(G_table, query, con, Community_Info){
   G_table$ModuleTable <- tibble::as_tibble(G_table$ModuleTable) %>% dplyr::distinct()
   colnames(G_table$ModuleTable) <- colnames(ModuleTable)
   return(G_table)
-}
-
-getClauseModuleToDrug <- function(ModuleInd = 'module', DrugInd = '', MTDrInd = ''){
-  return(paste(
-    getNodewithProperty(ModuleInd,'Module'),
-    getRelationshipWithProperty(MTDrInd,'MODULE_TO_DRUG'),
-    getNodewithProperty(DrugInd,'Drug')
-  ))
 }
 
 getClauseModuleToDriverPert <- function(GeneInd, GTMInd, ModuleInd ='module',

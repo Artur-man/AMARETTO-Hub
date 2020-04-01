@@ -16,16 +16,21 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
                                          hgtest_tbl_all, phenotype_tests_all) 
 {
   # If mandatory objects are not provided, stop!
-  if(is.null(cAMARETTO_Results) | is.null(AMARETTOinits) | is.null(cAMARETTO_Results)){
+  if(is.null(cAMARETTO_Results) | is.null(AMARETTOinits) | is.null(AMARETTO_Results)){
     stop('cAMARETTO_Results, AMARETTOinits and cAMARETTO_Results objects should be provided!')
+  }
+  
+  # If any of the cohorts of AMARETTO are not provided, stop
+  
+  # Cohort Names
+  Cohorts <- cAMARETTO_Results$cAMARETTOresults$runnames
+  if(!all(names(AMARETTOinits)==Cohorts) | !all(names(AMARETTO_Results)==Cohorts)){
+    stop('Some cohorts are not provided, please provide AMARETTO results and init objects of all cohorts')
   }
   
   # Websites for Genes and Genesets
   Genesetwebsite <- 'https://www.gsea-msigdb.org/gsea/msigdb/cards/'
   Genewebsite <- 'https://www.genecards.org/cgi-bin/carddisp.pl?gene='
-  
-  # Cohort Names
-  Cohorts <- cAMARETTO_Results$cAMARETTOresults$runnames
   
   # Neo4j directory
   if(!dir.exists(Neo4j_Dir))
@@ -42,7 +47,7 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
     # Extract Modules and Target Genes summaries
     ModuleOverview <- data.frame(Genes = rownames(AMARETTO_Result$ModuleMembership),
                                  Module = AMARETTO_Result$ModuleMembership)
-    ModuleOverview <- as_tibble(ModuleOverview) %>% group_by(ModuleNr) %>%
+    ModuleOverview <- tibble::as_tibble(ModuleOverview) %>% group_by(ModuleNr) %>%
       summarize(GeneList = paste(sort(.data$Genes),collapse = ', '),
                 NumberOfGens = n())
     ModuleOverview <- ModuleOverview %>% dplyr::mutate(ModuleNr = paste0('Module ',ModuleNr))
@@ -76,12 +81,12 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
                                  Module = ModuleRow)
 
     # Indicate activators (Activator) and suppressors (Repressor)
-    DriverGeneData <- as_tibble(DriverGeneData) %>% dplyr::mutate(Type = ifelse(.data$Coef > 0,'Activator','Repressor'))
+    DriverGeneData <- tibble::as_tibble(DriverGeneData) %>% dplyr::mutate(Type = ifelse(.data$Coef > 0,'Activator','Repressor'))
     RegulatorAlterations <- AMARETTOinit$RegulatorAlterations$Summary
     RegulatorAlterations <- RegulatorAlterations[as.character(DriverGeneData$Genes),] + 1
 
     # Indicate CVN or MET Drivers
-    DriverGeneData <- as_tibble(DriverGeneData) %>% dplyr::mutate(CNV = c('No','Yes')[RegulatorAlterations[,'CNV']],
+    DriverGeneData <- tibble::as_tibble(DriverGeneData) %>% dplyr::mutate(CNV = c('No','Yes')[RegulatorAlterations[,'CNV']],
                                                            MET = c('No','Yes')[RegulatorAlterations[,'MET']])
 
     # Extract Target genes
@@ -90,7 +95,7 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
                                  Module = AMARETTO_Result$ModuleMembership,
                                  Type = 'Target')
     rownames(TargetGeneData) <- NULL
-    TargetGeneData <- as_tibble(TargetGeneData) %>% dplyr::mutate(ModuleNr = paste0('Module ',ModuleNr),
+    TargetGeneData <- tibble::as_tibble(TargetGeneData) %>% dplyr::mutate(ModuleNr = paste0('Module ',ModuleNr),
                                                            CNV = NA,
                                                            MET = NA)
     colnames(TargetGeneData)[3] <- 'Module'
@@ -107,8 +112,14 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
   # Parse Gene sets
   if(!is.null(hgtest_tbl_all)){
     
+    # if cohort names do not match with Gene sets of cohorts, stop!
+    if(!all(names(hgtest_tbl_all) %in% Cohorts)){
+      stop('all cohorts of Gene Sets associations should be from cAMARETTO cohorts')
+    }
+    
+    # Prepare Gene
     cat('Preparing CSVs for Functional Categories ... \n')
-    for(cohort in Cohorts){
+    for(cohort in names(hgtest_tbl_all)){
       
       # Collecting hypergeometric test results of AMARETTO modules vs Functional Categories
       # with respect to a single cohort
@@ -127,9 +138,15 @@ AMARETTOHub_InitiateEntities <- function(Neo4j_Dir, AMARETTOlink, cAMARETTO_Resu
 
   # Parse Phenotypes
   if(!is.null(phenotype_tests_all)){
+  
+    # if cohort names do not match with Gene sets of cohorts, stop!
+    if(!all(names(phenotype_tests_all) %in% Cohorts)){
+      stop('all cohorts of Phenotype associations should be from cAMARETTO cohorts')
+    }
     
+    # Prepare
     cat('Preparing CSVs for Clinical Characterizations ... \n')
-    for(cohort in Cohorts){
+    for(cohort in names(phenotype_tests_all)){
   
       phenotype_tests <- phenotype_tests_all[[cohort]]
   

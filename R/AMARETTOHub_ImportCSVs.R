@@ -54,10 +54,6 @@ AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
                     ', Genes: row.GeneList, DriverList: row.DriverList, TargetGenes: row.TargetGenes, DriverGenes: row.DriverGenes, link: row.Link, namelink: row.ModuleNameLink})')
     suppressMessages(query_holder <- query %>% neo4r::call_neo4j(con))
 
-    # Save Modules
-    'MATCH (n:Module) RETURN n.ModuleName' %>% neo4r::call_neo4j(con) -> Modules
-    Modules <- Modules$n.ModuleName$value
-
     # Import Genes
     cat('Importing Driver and Target Genes \n')
 
@@ -66,10 +62,6 @@ AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
                     'MERGE (m:Module {ModuleName: "', cohort, ' " + row.Module}) ',
                     'MERGE (m)<-[:PART_OF {Type: row.Type, Coefficients: toInteger(row.Coef), CNV: row.CNV, MET: row.MET}]-(g);')
     suppressMessages(query_holder <- query %>% neo4r::call_neo4j(con))
-
-    # Save Genes
-    'MATCH (n:Gene) RETURN n' %>% neo4r::call_neo4j(con) -> Genes
-    Genes <- c(Genes$n$GeneName)
 
     if(file_type_exists['hgtest']){
 
@@ -81,10 +73,6 @@ AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
                       'MERGE (geneset:GeneSet {GeneSetName: row.Geneset, NumberOfGenes: toInteger(row.Geneset_length), link: row.Link, namelink: row.GenesetNameLink}) ',
                       'MERGE (module)-[:MODULE_TO_GENESET {GeneOverlap: row.Overlapping_genes, NumberGeneOverlap: toInteger(row.n_Overlapping), Pvalue: toFloat(row.p_value), FDRQvalue: toFloat(row.padj)}]->(geneset);')
       suppressMessages(query_holder <- query %>% neo4r::call_neo4j(con))
-
-      # Save Genesets
-      'MATCH (n:GeneSet) RETURN n' %>% neo4r::call_neo4j(con) -> GeneSet
-      GeneSet <- c(GeneSet$n$GeneSetName)
 
     }
 
@@ -98,10 +86,6 @@ AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
                       'MERGE (phenotype:Phenotype {PhenotypeName: row.Phenotypes}) ',
                       'MERGE (module)-[:MODULE_TO_PHENOTYPE {Test: row.Statistical_Test, Descriptive: row.Descriptive_Statistics, Pvalue: toFloat(row.pvalue), FDRQvalue: toFloat(row.qvalue), Type: row.Type}]->(phenotype);')
       suppressMessages(query_holder <- query %>% neo4r::call_neo4j(con))
-
-      # Save Phenotypes
-      'MATCH (n:Phenotype) RETURN n' %>% neo4r::call_neo4j(con) -> Phenotype
-      Phenotype <- c(Phenotype$n$PhenotypeName)
 
     }
   }
@@ -124,10 +108,27 @@ AMARETTOHub_ImportCSVs <- function(Neo4j_Dir, con_info, Community_Info){
                     MERGE (m:Module {ModuleName: row.ModuleNr})
                     MERGE (c)-[:CONTAINING]->(m);')
     suppressMessages(query_holder <- query %>% neo4r::call_neo4j(con))
-    
+  
     # Save Communities 
     'MATCH (n:Community) RETURN n.CommunityName' %>% neo4r::call_neo4j(con) -> Communities
     Communities <- Communities$n.CommunityName$value
+  }
+  
+  # Save Modules
+  'MATCH (n:Module) RETURN n.ModuleName' %>% neo4r::call_neo4j(con) -> Modules
+  Modules <- Modules$n.ModuleName$value
+  # Save Genes
+  'MATCH (n:Gene) RETURN n' %>% neo4r::call_neo4j(con) -> Genes
+  Genes <- c(Genes$n$GeneName)
+  # Save Genesets
+  if(file_type_exists['hgtest']){
+    'MATCH (n:GeneSet) RETURN n' %>% neo4r::call_neo4j(con) -> GeneSet
+    GeneSet <- c(GeneSet$n$GeneSetName)
+  }
+  # Save Phenotypes
+  if(file_type_exists['phenotype']){
+    'MATCH (n:Phenotype) RETURN n' %>% neo4r::call_neo4j(con) -> Phenotype
+    Phenotype <- c(Phenotype$n$PhenotypeName)
   }
   
   # save Entire Entities 

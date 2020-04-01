@@ -186,11 +186,6 @@ u <- tagList(
                     # Table of Driver Perturbations
                     tabPanel("Driver (Perturbation) Discovery",
                              dataTableOutput("ModuleVsDriverPert"),
-                             style = "background-color: #eeeeee;"),
-                    
-                    # Table of Driver Perturbations
-                    tabPanel("Drug Discovery",
-                             dataTableOutput("ModuleVsDrug"),
                              style = "background-color: #eeeeee;")
                     
                   ), width = 9
@@ -209,8 +204,7 @@ s <- shinyServer(function(input, output, session){
   hideTab(inputId = 'tabsetpanel', target = 'Gene Sets (Functional Characterization)')
   hideTab(inputId = 'tabsetpanel', target = 'Transcription Factor Discovery')
   hideTab(inputId = 'tabsetpanel', target = 'Driver (Perturbation) Discovery')
-  hideTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
-  
+
   # Initiate the Graph and the Table
   net <- reactiveValues(nodes=NULL,edges=NULL,groups=NULL, 
                         lnodes = NULL, ledges = NULL)
@@ -225,8 +219,7 @@ s <- shinyServer(function(input, output, session){
                             DriverPertTable = NULL,
                             DriverPertGeneTable = NULL, 
                             TransFactorTable = NULL,
-                            TransFactorGeneTable = NULL,
-                            DrugTable = NULL)
+                            TransFactorGeneTable = NULL)
   LookUpList <- reactiveValues(Genes = Genes,
                                Module = Modules,
                                Phenotype = Phenotype,
@@ -236,8 +229,7 @@ s <- shinyServer(function(input, output, session){
   # hide entities if not given 
   if(is.null(Phenotype)) hide('phenotype_input')
   if(is.null(GeneSet)) hide('geneset_input')
-  if(is.null(Drug)) hide('drug_input')
-  
+
   # Observe Action Button event
   observeEvent(input$gennet,{
     
@@ -315,17 +307,6 @@ s <- shinyServer(function(input, output, session){
                        ShowAll = (input$showalldriverpert == "show all drivers validated"), 
                        ShowAllNonValid = (input$showalldriverpert=='show all genes validated'),
                        ValStat = (input$driverpert_valstat=='ES+Pval+Padj+Zscore'))
-    
-    # Input for Drugs (Chemical Perturbations)
-    drug <- input$drug
-    if(input$drugkeyword!='') {
-      drugkeyword <- str_extract_all(input$drugkeyword, regex('[A-Za-z0-9-]++', multiline = TRUE))[[1]]
-      drugkeyword <- toupper(unique (grep(paste(tolower(drugkeyword),collapse="|"),
-                                             tolower(Drug), value=TRUE)))
-      drug <- union(drug,drugkeyword)
-    }
-    drug <- list(Names = drug, ShowAll = !is.null(drug),
-                 ShowDgidb = input$showdgidb, ShowNbclinicaltrial = input$shownbclinicaltrial)
 
     # The user should not be able to choose 'show all' options for both
     # Genesets and Phenotypes
@@ -375,19 +356,14 @@ s <- shinyServer(function(input, output, session){
     } else {
       hideTab(inputId = 'tabsetpanel', target = 'Driver (Perturbation) Discovery')
     }
-    if(!is.null(drug$Names) | drug$ShowAll){
-      showTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
-    } else {
-      hideTab(inputId = 'tabsetpanel', target = 'Drug Discovery')
-    }
     
     
     # If no query has been made, return NULL
-    if(!is.null(input$gene) | !is.null(community$Names) | !is.null(phenotype$Names) | !is.null(input$geneset) | !is.null(input$drug))
+    if(!is.null(input$gene) | !is.null(community$Names) | !is.null(phenotype$Names) | !is.null(input$geneset))
     {
       # make a query in Neo4j server and establish the graph
       query <- getQueryRToCypher(Gene = gene, Module = module, Phenotype = phenotype, GeneSet = geneset, 
-                                 Community = community, TransFactor = transfactor, DriverPert = driverpert, Drug = drug, 
+                                 Community = community, TransFactor = transfactor, DriverPert = driverpert,
                                  Community_Info = Community_Info)
       # print(query)
       G <- query$graph%>%call_neo4j(con,type="graph")
@@ -523,9 +499,6 @@ s <- shinyServer(function(input, output, session){
   output$ModuleVsDriverPert <- renderDT(G_table$DriverPertTable, filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE,
                                         options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), autoWidth = TRUE, scrollX = TRUE, 
                                                        columnDefs = list(list(width = '550px', targets = c(13)))))
-  output$ModuleVsDrug <- renderDT(G_table$DrugTable, options = list(pageLength = 20, lengthMenu = list(c(5,10, 20, 100), list('5', '10', '20','100')), dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print')), 
-                                         filter = "top",extensions = 'Buttons', server = FALSE, escape = FALSE)
-  # output$ModuleVsDrug <- renderDT(G_table$DrugTable,options = list(pageLength = 20, lengthMenu = list(c(5,10, 20, 100), list('5', '10', '20','100'))))
 })
 shinyApp(u,s, options = list(height=2500))
 ```
